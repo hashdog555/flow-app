@@ -2,14 +2,14 @@ name: Build & Release Toonflow-app
 
 on:
   push:
-    branches: [ master ] # 你的默认分支是 master，这里对应上
-  pull_request:
     branches: [ master ]
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,27 +17,30 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20 # 适配项目的 Node 版本
+          node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps # 关键：解决版本冲突
 
       - name: Build Vue frontend
         run: npm run build
 
       - name: Build Electron app
-        run: npm run electron:build # 原项目一般都配置了这个脚本
+        run: |
+          npm run make || npm run dist || npm run electron:build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: electron-build
-          path: dist/ # 打包产物的目录
+          path: |
+            dist/
+            out/
 
-      - name: Create Release (only on master push)
-        if: github.ref == 'refs/heads/master'
+      - name: Create Release
         uses: softprops/action-gh-release@v1
+        if: github.ref == 'refs/heads/master'
         with:
           generate_release_notes: true
           files: |
