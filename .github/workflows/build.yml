@@ -7,14 +7,18 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 拉取完整历史，方便生成版本号
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,18 +33,28 @@ jobs:
         run: npm run build
 
       - name: Build Electron app
-        run: |
-          npm run make || npm run dist || npm run electron:build
+        run: npm run electron:build
 
-      - name: Upload build artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: electron-build
-          path: |
-            dist/
-            out/
+          name: build-${{ matrix.os }}
+          path: dist/
 
-      # 新增：自动生成版本号和Tag
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
       - name: Generate version tag
         id: version
         run: |
@@ -52,10 +66,9 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: github.ref == 'refs/heads/master'
         with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
           generate_release_notes: true
-          tag_name: ${{ steps.version.outputs.VERSION }} # 使用上面生成的Tag
           files: |
             dist/*.exe
             dist/*.dmg
