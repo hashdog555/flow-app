@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取完整历史，方便生成版本号
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -21,7 +23,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps # 关键：解决版本冲突
+        run: npm install --legacy-peer-deps
 
       - name: Build Vue frontend
         run: npm run build
@@ -38,11 +40,22 @@ jobs:
             dist/
             out/
 
+      # 新增：自动生成版本号和Tag
+      - name: Generate version tag
+        id: version
+        run: |
+          echo "VERSION=v1.0.${GITHUB_RUN_ID}" >> $GITHUB_OUTPUT
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag v1.0.${GITHUB_RUN_ID}
+          git push origin v1.0.${GITHUB_RUN_ID}
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/master'
         with:
           generate_release_notes: true
+          tag_name: ${{ steps.version.outputs.VERSION }} # 使用上面生成的Tag
           files: |
             dist/*.exe
             dist/*.dmg
